@@ -1,0 +1,214 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "serverfarms_nestjs_asp_name": {
+      "defaultValue": "nestjs-asp",
+      "type": "String"
+    },
+    "subscriptionId": {
+      "type": "string",
+      "defaultValue": "816f41a6-199a-4e85-9210-491ecfc7535d"
+    },
+    "name": {
+      "type": "string",
+      "defaultValue": "nestjs-api"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "West Europe"
+    },
+    "serverFarmResourceGroup": {
+      "type": "string",
+      "defaultValue": "nestjs-rg"
+    },
+    "alwaysOn": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "linuxFxVersion": {
+      "type": "string",
+      "defaultValue": "NODE|10.15"
+    },
+    "components_nestjs_appinsights_name": {
+      "defaultValue": "nestjs-appinsights",
+      "type": "String"
+    },
+    "vaults_nestjs_keyvault_name": {
+      "defaultValue": "nestjs-keyvault",
+      "type": "String"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2016-09-01",
+      "name": "[parameters('serverfarms_nestjs_asp_name')]",
+      "location": "West Europe",
+      "sku": {
+        "name": "P1v2",
+        "tier": "PremiumV2",
+        "size": "P1v2",
+        "family": "Pv2",
+        "capacity": 1
+      },
+      "kind": "linux",
+      "properties": {
+        "name": "[parameters('serverfarms_nestjs_asp_name')]",
+        "perSiteScaling": false,
+        "reserved": true,
+        "targetWorkerCount": 0,
+        "targetWorkerSizeId": 0
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2016-10-01",
+      "name": "[parameters('vaults_nestjs_keyvault_name')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "Standard"
+        },
+        "tenantId": "396b38cc-aa65-492b-bb0e-3d94ed25a97b",
+        "accessPolicies": [
+          {
+            "tenantId": "396b38cc-aa65-492b-bb0e-3d94ed25a97b",
+            "objectId": "e6644c0f-699a-49b0-8143-e056bf7845fa",
+            "permissions": {
+              "keys": [
+                "encrypt",
+                "decrypt",
+                "wrapKey",
+                "unwrapKey",
+                "sign",
+                "verify",
+                "get",
+                "list",
+                "create",
+                "update",
+                "import",
+                "delete",
+                "backup",
+                "restore",
+                "recover",
+                "purge"
+              ],
+              "secrets": [
+                "get",
+                "list",
+                "set",
+                "delete",
+                "backup",
+                "restore",
+                "recover",
+                "purge"
+              ],
+              "certificates": [
+                "get",
+                "list",
+                "delete",
+                "create",
+                "import",
+                "update",
+                "managecontacts",
+                "getissuers",
+                "listissuers",
+                "setissuers",
+                "deleteissuers",
+                "manageissuers",
+                "recover",
+                "purge"
+              ]
+            }
+          }
+        ],
+        "enabledForDeployment": true,
+        "enabledForDiskEncryption": true,
+        "enabledForTemplateDeployment": true
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2016-10-01",
+      "name": "[concat(parameters('vaults_nestjs_keyvault_name'), '/TODOSURL')]",
+      "location": "West Europe",
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', parameters('vaults_nestjs_keyvault_name'))]"
+      ],
+      "properties": {
+        "contentType": "string",
+        "value": "https://jsonplaceholder.typicode.com/todos",
+        "attributes": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "microsoft.insights/components",
+      "apiVersion": "2015-05-01",
+      "name": "[parameters('components_nestjs_appinsights_name')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "Flow_Type": "Redfield",
+        "Request_Source": "IbizaAIExtension"
+      }
+    },
+    {
+      "apiVersion": "2018-02-01",
+      "name": "[parameters('name')]",
+      "type": "Microsoft.Web/sites",
+      "location": "[parameters('location')]",
+      "tags": {},
+      "dependsOn": [
+        "[parameters('components_nestjs_appinsights_name')]"
+      ],
+      "properties": {
+        "name": "[parameters('name')]",
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(concat('microsoft.insights/components/', parameters('components_nestjs_appinsights_name'))).InstrumentationKey]"
+            },
+            {
+              "name": "KEYVAULT_BASEURL",
+              "value": "[reference(concat('Microsoft.KeyVault/vaults/', parameters('vaults_nestjs_keyvault_name'))).vaultUri]"
+            },
+            {
+              "name": "RETRYPOLICY_DURATIONBETWEENRETRYINSECOND",
+              "value": 3
+            },
+            {
+              "name": "RETRYPOLICY_RETRYCOUNT",
+              "value": 3
+            },
+            {
+              "name": "LOGS_NAMESPACE",
+              "value": "todos-apis-nestjs"
+            },
+            {
+              "name": "NODE_ENV",
+              "value": "dva"
+            },
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": true
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": 0
+            }
+          ],
+          "linuxFxVersion": "[parameters('linuxFxVersion')]",
+          "alwaysOn": "[parameters('alwaysOn')]"
+        },
+        "serverFarmId": "[concat('/subscriptions/',parameters('subscriptionId'),'/resourceGroups/',parameters('serverFarmResourceGroup'),'/providers/Microsoft.Web/serverfarms/',parameters('serverfarms_nestjs_asp_name'))]",
+        "clientAffinityEnabled": false
+      }
+    }
+  ]
+}
